@@ -47,55 +47,6 @@ tbl1 %>%
   save_as_docx(path = file.path("Results", "Table1_Descriptives.docx"))
 
 ###Part 2: Main analyses_Cox regression(timevarying ASD)
-#2.1 prepare data for time-varying ASD 
-#function to prepare data for Cox analysis
-Cox_prep <- function(outcome_start){
-  # define event and survival time 
-  outcome_data <- ASD_cardio %>% 
-    mutate(last_fup_date=pmin(.data[[outcome_start]],end_follow,na.rm=T)) %>%
-    mutate(outcome=(ifelse(is.na(.data[[outcome_start]]),0,1))) %>%
-    mutate(os_days=as.numeric(difftime(last_fup_date,as.Date("2014-01-01"),units="days")))
-#1: prepare dataset of time-independent covariates, event, and survival time
-  indepdt_var <- outcome_data %>%
-    select(RINPERSOON:birth_year,SEC,income,ADHD:any_psychiatry,outcome,os_days)
-#2:Prepare dataset including ASD (time-dependent covariate), event, and survival time
-  #if ASD was diagnosis before baseline, the ASD_time is 0; or else ASD_time is the days after baseline;
-  #if no ASD dianosis, ASD_time is survival time.
-  depdt_var <- outcome_data %>% 
-    mutate(ASD = ifelse(is.na(ASD_diag_start),0,1)) %>%
-    mutate(ASD_time = (ifelse(is.na(ASD_diag_start), os_days,ifelse(ASD_diag_start <= as.Date("2014-01-01"),0,
-                                                                 as.numeric(difftime(ASD_diag_start,as.Date("2014-01-01"),units="days")))))) %>%
-    select(RINPERSOON,outcome,os_days,ASD,ASD_time)
-  
-#3: merge the datasets
-  cox<-tmerge(data1=indepdt_var, data2=depdt_var, id=RINPERSOON,
-                       event=event(os_days,outcome), exposure=tdc(ASD_time,ASD))
-  cox$ASD_timevarying<-0
-  cox$ASD_timevarying[!is.na(cox$exposure)]<-1
-  cox <-cox %>% 
-  select(-exposure,-outcome) %>% 
-  mutate (tstart = tstart + (2014-birth_year)*365, tstop = tstop + (2014-birth_year)*365)
-  return(cox)
-}
-
-#use function Cox_prep to get dataset for Cox regression with time-varying ASD for each outcome
-
-CM_timevy<-Cox_prep("CM_diag_start")
-diabetes_timevy<-Cox_prep("diabetes_start")
-hypertension_timevy<-Cox_prep("hypertension_start")
-dyslipidemia_timevy<-Cox_prep("dyslipidemia_start")
-stroke_timevy<-Cox_prep("stroke_diag_start")
-AP_timevy<-Cox_prep("AP_diag_start")
-MI_timevy<-Cox_prep("MI_diag_start")
-HF_timevy<-Cox_prep("HF_diag_start")
-
-# save datasets
-outcome_timevy<-list(CM_timevy=CM_timevy,diabetes_timevy=diabetes_timevy,hypertension_timevy=hypertension_timevy,dyslipidemia_timevy=dyslipidemia_timevy,stroke_timevy=stroke_timevy,AP_timevy=AP_timevy,MI_timevy=MI_timevy,HF_timevy=HF_timevy)
-for (i in names(outcome_timevy)) {
-  saveRDS(outcome_timevy[[i]],paste0("Processed_data/",i,".rds"))
-}
-
-#2.2 Cox regression analysis
 # load data
 data_timevy<-c("CM_timevy","diabetes_timevy","hypertension_timevy","dyslipidemia_timevy","stroke_timevy","AP_timevy","MI_timevy","HF_timevy")
 for (i in 1:8) {
@@ -104,7 +55,6 @@ for (i in 1:8) {
 # define results format
 myformat <- function(x, digit = 3, sep = TRUE) {
   format(round(as.numeric(x), digit), nsmall = digit, trim = TRUE, big.mark = ifelse(sep, ",", ""))}
-
 
 # functions for Model 1 and 2
 # Model 1: adjusted sex, birth_year
